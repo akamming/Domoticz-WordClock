@@ -29,10 +29,10 @@ import urllib.request as request
 import time
 
 Debugging=True
-Refreshtime=3600
+Refreshtime=5  #Get config from clock every 15 mins
 LastRefresh=0
 
-CLOCKONOFF=1
+#CLOCKONOFF=1
 FOREGROUND=2
 BRIGHTNESS=3
 BACKGROUND=4
@@ -90,17 +90,17 @@ def HTTPRequest(command):
         Domoticz.Error("exception is '{}'".format(e))
 
 def ExtractColorAndLevel(Palette):
-    r=Palette["r"]
-    g=Palette["g"]
-    b=Palette["b"]
+    r=int(Palette["r"])
+    g=int(Palette["g"])
+    b=int(Palette["b"])
 
     # {"b":89,"cw":0,"g":225,"m":3,"r":255,"t":0,"ww":0}
     Level=max(r,g,b)
     Color = json.dumps({
           'm': 3, #mode 3: RGB
-          'r': 0 if Level==0 else int(r*255/Level),
-          'g': 0 if Level==0 else int(g*255/Level),
-          'b': 0 if Level==0 else int(b*255/Level),
+          'r':  255 if Level==0 else int(r*255/Level),
+          'g':  255 if Level==0 else int(g*255/Level),
+          'b':  255 if Level==0 else int(b*255/Level),
     })
     return Color,int(Level*100/255)
               
@@ -110,14 +110,13 @@ def GetConfig():
     if response:
         resultJson = response.json()
         
-        #Update nightmode
-        value="on"
+        #Update ibrightness/nightmode
         if resultJson["nightmode"]=="on":
-            value="off"
-        UpdateOnOffSensor("WordClock",CLOCKONOFF,value)
-
-        #Update dimmerr
-        UpdateDimmer("Brightness",BRIGHTNESS,1,str(int(resultJson["Brightness"]/255*100)))
+            UpdateDimmer("Brightness",BRIGHTNESS,0,0)
+            Debug("Updating with "+str(int(resultJson["Brightness"])/255*100))
+        else:
+            UpdateDimmer("Brightness",BRIGHTNESS,1,str(int(resultJson["Brightness"])/255*100))
+            Debug("Updating with "+str(int(resultJson["Brightness"])/255*100)+" and 1")
 
         #Update Foreground
         Color,Level=ExtractColorAndLevel(resultJson["foregroundcolor"])
@@ -156,7 +155,7 @@ class BasePlugin:
     def onStart(self):
         global LastRefresh
         Domoticz.Log("onStart called")
-        GetConfig()
+        #GetConfig()
         LastRefresh=time.time()
         DumpConfigToLog()
 
@@ -172,16 +171,7 @@ class BasePlugin:
 
     def onCommand(self, Unit, Command, Level, Color):
         Domoticz.Log("onCommand called for Unit " + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level) + ", Color: "+str(Color))
-        if Unit==CLOCKONOFF:
-            NewValue=0
-            if Command=="On":
-                HTTPRequest("setnightmode?value=0")
-                NewValue=1
-
-            else:
-                HTTPRequest("setnightmode?value=1")
-            Devices[Unit].Update(nValue=NewValue, sValue=Command)
-
+        
         if Unit in (FOREGROUND,BACKGROUND,SECONDS):
             #Create correct device string
             DeviceString="fg="
@@ -202,17 +192,23 @@ class BasePlugin:
                 UpdateRGBDevice("Foreground",Unit,1,Level,Color)
                 response = HTTPRequest("setcolor?"+DeviceString+HexColor(Color,Level))
 
+            if Command=="On":
+                UpdateRGBDevice("Foreground",Unit,1,Level,Color)
+                response = HTTPRequest("setcolor?"+DeviceString+HexColor(Devices[Unit].Color,Level))
+
             #Handle Off
             if Command=="Off":
                 UpdateRGBDevice("Foreground",Unit,0,0)
                 response = HTTPRequest("setcolor?"+DeviceString+"000000")
 
         if Unit==BRIGHTNESS:
-            value=0
-            if Level>0:
-                Value=1
-            UpdateDimmer("Brightness",Unit,Value,str(Level))
-            HTTPRequest("setbrightness?value="+str(int(255*Level/100)))
+            if Command=='Off':
+                UpdateDimmer("Brightness",Unit,0,0)
+                HTTPRequest("setnightmode?value=1")
+            else:
+                UpdateDimmer("Brightness",Unit,1,str(Level))
+                HTTPRequest("setbrightness?value="+str(int(255*Level/100)))
+                HTTPRequest("setnightmode?value=0")
 
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
