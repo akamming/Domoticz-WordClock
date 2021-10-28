@@ -18,6 +18,7 @@
     <params>
      <param field="Address" label="Hostname or IP Adress" width="200px" required="true" default="localhost"/>
      <param field="Port" label="Port" width="40px" required="true" default="8080"/>
+     <param field="Mode1" label="poll time in seconds" required="true" default="3600"/>
     </params>
 </plugin>
 """
@@ -29,7 +30,7 @@ import urllib.request as request
 import time
 
 Debugging=True
-Refreshtime=5  #Get config from clock every 15 mins
+Refreshtime=3600  #Get config from clock every 15 mins
 LastRefresh=0
 
 #CLOCKONOFF=1
@@ -79,7 +80,7 @@ def HTTPRequest(command):
     resultJson = None
     url = "http://{}:{}/{}".format(Parameters["Address"], Parameters["Port"], command)
     try:
-        response = requests.get(url,timeout=10)
+        response = requests.get(url,timeout=3)
         Debug("url = "+url)
         if (response.status_code==200):
             return response
@@ -108,30 +109,45 @@ def GetConfig():
     Debug("GetConfig")
     response = HTTPRequest("getconfig")
     if response:
-        resultJson = response.json()
-        
-        #Update ibrightness/nightmode
-        if resultJson["nightmode"]=="on":
-            UpdateDimmer("Brightness",BRIGHTNESS,0,0)
-            Debug("Updating with "+str(int(resultJson["Brightness"])/255*100))
-        else:
-            UpdateDimmer("Brightness",BRIGHTNESS,1,str(int(resultJson["Brightness"])/255*100))
-            Debug("Updating with "+str(int(resultJson["Brightness"])/255*100)+" and 1")
+        try:
+            resultJson = response.json()
+            
+            #Update ibrightness/nightmode
+            if resultJson["nightmode"]=="on":
+                UpdateDimmer("Brightness",BRIGHTNESS,0,0)
+                Debug("Updating with 0,0")
+            else:
+                UpdateDimmer("Brightness",BRIGHTNESS,1,str(int(resultJson["Brightness"])/255*100))
+                Debug("Updating with "+str(int(resultJson["Brightness"])/255*100)+" and 1")
 
-        #Update Foreground
-        Color,Level=ExtractColorAndLevel(resultJson["foregroundcolor"])
-        Debug("Updating foreground with "+str(Level)+" and "+str(Color))
-        UpdateRGBDevice("Foreground",FOREGROUND,1,str(Level),Color)
+            #Update Foreground
+            Color,Level=ExtractColorAndLevel(resultJson["foregroundcolor"])
+            if Level==0:
+                Debug("Updating foreground with 0,0")
+                UpdateRGBDevice("Foreground",FOREGROUND,0,0)
+            else:
+                Debug("Updating foreground with "+str(Level)+" and "+str(Color))
+                UpdateRGBDevice("Foreground",FOREGROUND,1,str(Level),Color)
 
-        #Update Background 
-        Color,Level=ExtractColorAndLevel(resultJson["backgroundcolor"])
-        Debug("Updating foreground with "+str(Level)+" and "+str(Color))
-        UpdateRGBDevice("Background",BACKGROUND,1,str(Level),Color)
-        
-        #Update Seconds
-        Color,Level=ExtractColorAndLevel(resultJson["secondscolor"])
-        Debug("Updating seconds with "+str(Level)+" and "+str(Color))
-        UpdateRGBDevice("Seconds",SECONDS,1,Level,Color)
+            #Update Background 
+            Color,Level=ExtractColorAndLevel(resultJson["backgroundcolor"])
+            if Level==0:
+                Debug("Updating background with 0,0")
+                UpdateRGBDevice("Background",BACKGROUND,0,0)
+            else:
+                Debug("Updating foreground with "+str(Level)+" and "+str(Color))
+                UpdateRGBDevice("Background",BACKGROUND,1,str(Level),Color)
+            
+            #Update Seconds
+            Color,Level=ExtractColorAndLevel(resultJson["secondscolor"])
+            if Level==0:
+                Debug("Updating seconds with 0,0")
+                UpdateRGBDevice("Seconds",SECONDS,0,0)
+            else:
+                Debug("Updating seconds with "+str(Level)+" and "+str(Color))
+                UpdateRGBDevice("Seconds",SECONDS,1,Level,Color)
+        except:
+            Debug("An exception occurred while reading the output")
     else:
         Debug("No response")
 
@@ -154,10 +170,15 @@ class BasePlugin:
 
     def onStart(self):
         global LastRefresh
+        global Refreshtime
+
         Domoticz.Log("onStart called")
-        #GetConfig()
+        GetConfig()
         LastRefresh=time.time()
         DumpConfigToLog()
+        if int(Parameters["Mode1"])>0:
+            Refreshtime=int(Parameters["Mode1"])
+            Debug("Refreshtime set to "+str(Refreshtime))
 
 
     def onStop(self):
@@ -220,7 +241,7 @@ class BasePlugin:
     def onHeartbeat(self):
         global LastRefresh
         Domoticz.Log("onHeartbeat called")
-        if time.time()-LastRefresh>Refreshtime:
+        if Refreshtime>0 and time.time()-LastRefresh>Refreshtime:
             GetConfig()
             LastRefresh=time.time()
         else:
