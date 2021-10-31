@@ -1,6 +1,6 @@
-# Basic Python Plugin Example
+# WordClock Pluggin
 #
-# Author: GizMoCuz
+# Author: akamming
 #
 """
 <plugin key="ESPWordClock" name="ESP8266 WordClock" author="akamming" version="0.0.1" wikilink="http://www.domoticz.com/wiki/plugins/plugin.html" externallink="https://github.com/akamming/WordclockV3">
