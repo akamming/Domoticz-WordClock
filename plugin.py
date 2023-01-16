@@ -69,6 +69,7 @@ def UpdateRGBDevice(SensorName,UnitID,nValue,sValue,Color=""):
             Devices[UnitID].Update(nValue=nValue,sValue=str(sValue))
 
 def UpdateDimmer(SensorName,UnitID,nValue,sValue):
+        Debug("UpdateDimmer(\""+SensorName+","+str(UnitID)+","+str(nValue)+",\""+str(sValue)+"\")")
         #Creating devices in case they aren't there...
         if not (UnitID in Devices):
             Debug("Creating device "+SensorName)
@@ -112,9 +113,9 @@ def GetConfig():
         try:
             resultJson = response.json()
             
-            #Update ibrightness/nightmode
+            #Update brightness/nightmode
             if resultJson["nightmode"]==True:
-                UpdateDimmer("Brightness",BRIGHTNESS,0,0)
+                UpdateDimmer("Brightness",BRIGHTNESS,0,Devices[BRIGHTNESS].LastLevel)
                 Debug("Updating with 0,0")
             else:
                 UpdateDimmer("Brightness",BRIGHTNESS,1,str(int(resultJson["Brightness"])/255*100))
@@ -219,16 +220,23 @@ class BasePlugin:
             if Command=="Off":
                 UpdateRGBDevice("Foreground",Unit,0,0)
                 response = HTTPRequest("setcolor?"+DeviceString+"000000")
-
-        if Unit==BRIGHTNESS:
+        elif Unit==BRIGHTNESS:
             if Command=='Off':
-                UpdateDimmer("Brightness",Unit,0,0)
+                UpdateDimmer("Brightness",Unit,0,Devices[Unit].LastLevel)
                 HTTPRequest("setnightmode?value=1")
-            else:
+            elif Command=='On':
+                UpdateDimmer("Brightness",Unit,1,Devices[Unit].LastLevel)
+                HTTPRequest("setnightmode?value=0")
+                HTTPRequest("setbrightness?value="+str(int(255*Level/100)))
+            elif Command=='Set Level':
                 UpdateDimmer("Brightness",Unit,1,str(Level))
                 HTTPRequest("setbrightness?value="+str(int(255*Level/100)))
                 HTTPRequest("setnightmode?value=0")
+            else:
+                Domoticz.Log("ERROR: This code should not be reached BRIGHTNESS")
 
+        else: 
+            Domoticz.Log("ERROR: Unknown device")
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
         Domoticz.Log("Notification: " + Name + "," + Subject + "," + Text + "," + Status + "," + str(Priority) + "," + Sound + "," + ImageFile)
