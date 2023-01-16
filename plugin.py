@@ -113,7 +113,7 @@ def GetConfig():
             resultJson = response.json()
             
             #Update ibrightness/nightmode
-            if resultJson["nightmode"]=="on":
+            if resultJson["nightmode"]==True:
                 UpdateDimmer("Brightness",BRIGHTNESS,0,0)
                 Debug("Updating with 0,0")
             else:
@@ -203,9 +203,7 @@ class BasePlugin:
 
             #Handle Set Level
             if Command=="Set Level":
-                Debug("Device Color      : " + str(Devices[2].Color))
                 UpdateRGBDevice("Foreground",Unit,1,Level)
-                Debug("Device Color      : " + str(Devices[2].Color))
                 response = HTTPRequest("setcolor?"+DeviceString+HexColor(Devices[Unit].Color,Level))
 
             #Handle Set Color
